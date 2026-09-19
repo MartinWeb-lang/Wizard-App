@@ -118,11 +118,7 @@ function aendern(typ,index,delta){
   spielSpeichern(); rundeAnzeigen();
 }
 function rundeAuswerten(){
-  const summe=stiche.reduce((a,b)=>a+b,0);
-  if(summe!==runde){
-    alert(`In Runde ${runde} müssen insgesamt genau ${runde} Stiche eingetragen sein.\nAktuell: ${summe}`);
-    return;
-  }
+
   const rundenpunkte=[];
   for(let i=0;i<spieler.length;i++){
     const p=ansagen[i]===stiche[i] ? 20+stiche[i]*10 : -10*Math.abs(ansagen[i]-stiche[i]);
