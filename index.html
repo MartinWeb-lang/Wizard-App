@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#172033">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Wizard Punkteblock</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  max-width: 680px; margin: 0 auto; padding: 18px;
+  background: #172033; color: white; min-height: 100vh;
+}
+h1,h2 { text-align:center; }
+h1 { margin: 8px 0 18px; }
+.box,.spieler {
+  background:white; color:#222; padding:16px; margin:12px 0;
+  border-radius:16px;
+}
+.name {
+  width:100%; padding:13px; margin:5px 0; font-size:17px;
+  border:1px solid #bbb; border-radius:10px; background:white; color:#222;
+}
+button {
+  border:0; border-radius:11px; padding:12px; font-size:17px;
+  cursor:pointer; touch-action:manipulation;
+}
+.hauptbutton { width:100%; margin-top:12px; background:#e2b13c; color:#111; font-weight:700; }
+.nebenbutton { width:100%; margin-top:9px; background:#e8e8e8; color:#111; }
+.spielername { font-size:21px; font-weight:700; }
+.zaehler { display:grid; grid-template-columns:1fr 58px 48px 58px; gap:8px; align-items:center; margin-top:13px; }
+.zaehler button { font-size:25px; padding:8px; }
+.wert { font-size:25px; font-weight:700; text-align:center; }
+.gesamt { margin-top:12px; font-weight:700; }
+.hinweis { text-align:center; opacity:.9; }
+.tablewrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; background:white; color:#222; font-size:13px; }
+th,td { padding:7px; border:1px solid #bbb; text-align:center; white-space:nowrap; }
+th { background:#eee; }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+<h1>🧙 WIZARD</h1>
+
+<div id="fortsetzen" class="box hidden">
+  <h2>Laufendes Spiel</h2>
+  <p id="fortsetzenInfo" class="hinweis"></p>
+  <button class="hauptbutton" onclick="spielLaden()">▶️ Spiel fortsetzen</button>
+  <button class="nebenbutton" onclick="gespeichertesSpielLoeschen()">🗑 Neues Spiel</button>
+</div>
+
+<div id="start" class="box">
+  <h2>Neues Spiel</h2>
+  <input class="name" id="spieler1" placeholder="Spieler 1">
+  <input class="name" id="spieler2" placeholder="Spieler 2">
+  <input class="name" id="spieler3" placeholder="Spieler 3">
+  <input class="name" id="spieler4" placeholder="Spieler 4">
+  <input class="name" id="spieler5" placeholder="Spieler 5">
+  <input class="name" id="spieler6" placeholder="Spieler 6">
+  <button class="hauptbutton" onclick="spielStarten()">🎴 Spiel starten</button>
+</div>
+
+<div id="spiel"></div>
+<div id="tabelle"></div>
+
+<script>
+let spieler=[], gesamtpunkte=[], historie=[], ansagen=[], stiche=[];
+let runde=1, maxRunden=0;
+const KEY="wizardSpielV2";
+
+function spielSpeichern(){
+  localStorage.setItem(KEY, JSON.stringify({spieler,gesamtpunkte,historie,runde,maxRunden,ansagen,stiche}));
+}
+function spielStarten(){
+  spieler=[];
+  for(let i=1;i<=6;i++){
+    const name=document.getElementById("spieler"+i).value.trim();
+    if(name) spieler.push(name);
+  }
+  if(spieler.length<3){ alert("Mindestens 3 Spieler eingeben."); return; }
+  gesamtpunkte=new Array(spieler.length).fill(0);
+  historie=[]; runde=1; maxRunden=Math.floor(60/spieler.length);
+  document.getElementById("start").classList.add("hidden");
+  document.getElementById("fortsetzen").classList.add("hidden");
+  neueRunde();
+}
+function neueRunde(){
+  ansagen=new Array(spieler.length).fill(0);
+  stiche=new Array(spieler.length).fill(0);
+  spielSpeichern(); rundeAnzeigen();
+}
+function rundeAnzeigen(){
+  let html=`<h2>Runde ${runde} / ${maxRunden}</h2><p class="hinweis">🃏 ${runde} Karten pro Spieler</p>`;
+  for(let i=0;i<spieler.length;i++){
+    html+=`<div class="spieler">
+      <div class="spielername">🧙 ${esc(spieler[i])}</div>
+      <div class="zaehler"><strong>Ansage</strong>
+        <button onclick="aendern('a',${i},-1)">−</button><span class="wert">${ansagen[i]}</span>
+        <button onclick="aendern('a',${i},1)">+</button></div>
+      <div class="zaehler"><strong>Stiche</strong>
+        <button onclick="aendern('s',${i},-1)">−</button><span class="wert">${stiche[i]}</span>
+        <button onclick="aendern('s',${i},1)">+</button></div>
+      <div class="gesamt">Gesamt: ${gesamtpunkte[i]} Punkte</div>
+    </div>`;
+  }
+  html+=`<button class="hauptbutton" onclick="rundeAuswerten()">✅ Runde auswerten</button>`;
+  document.getElementById("spiel").innerHTML=html;
+  tabelleAnzeigen();
+}
+function aendern(typ,index,delta){
+  const feld=typ==="a"?ansagen:stiche;
+  feld[index]=Math.max(0,Math.min(runde,feld[index]+delta));
+  spielSpeichern(); rundeAnzeigen();
+}
+function rundeAuswerten(){
+  const summe=stiche.reduce((a,b)=>a+b,0);
+  if(summe!==runde){
+    alert(`In Runde ${runde} müssen insgesamt genau ${runde} Stiche eingetragen sein.\nAktuell: ${summe}`);
+    return;
+  }
+  const rundenpunkte=[];
+  for(let i=0;i<spieler.length;i++){
+    const p=ansagen[i]===stiche[i] ? 20+stiche[i]*10 : -10*Math.abs(ansagen[i]-stiche[i]);
+    gesamtpunkte[i]+=p; rundenpunkte.push(p);
+  }
+  historie.push({runde,ansagen:[...ansagen],stiche:[...stiche],punkte:[...rundenpunkte],gesamt:[...gesamtpunkte]});
+  spielSpeichern();
+  if(runde===maxRunden){ spielEnde(); return; }
+  runde++; neueRunde();
+}
+function tabelleAnzeigen(){
+  if(!historie.length){ document.getElementById("tabelle").innerHTML=""; return; }
+  let html=`<div class="box"><h2>📊 Spielverlauf</h2><div class="tablewrap"><table><tr><th>R</th>`;
+  spieler.forEach(n=>html+=`<th>${esc(n)}</th>`);
+  html+="</tr>";
+  historie.forEach(h=>{
+    html+=`<tr><td>${h.runde}</td>`;
+    for(let i=0;i<spieler.length;i++){
+      const p=h.punkte[i];
+      html+=`<td>${h.ansagen[i]} → ${h.stiche[i]}<br><strong>${p>=0?"+":""}${p}</strong><br>Σ ${h.gesamt[i]}</td>`;
+    }
+    html+="</tr>";
+  });
+  html+=`</table></div><button class="nebenbutton" onclick="letzteRundeKorrigieren()">↩ Letzte Runde korrigieren</button></div>`;
+  document.getElementById("tabelle").innerHTML=html;
+}
+function letzteRundeKorrigieren(){
+  if(!historie.length) return;
+  const letzte=historie.pop();
+  runde=letzte.runde; ansagen=[...letzte.ansagen]; stiche=[...letzte.stiche];
+  gesamtpunkte=historie.length ? [...historie[historie.length-1].gesamt] : new Array(spieler.length).fill(0);
+  spielSpeichern(); rundeAnzeigen();
+}
+function spielEnde(){
+  const bester=Math.max(...gesamtpunkte);
+  const gewinner=spieler.filter((_,i)=>gesamtpunkte[i]===bester);
+  document.getElementById("spiel").innerHTML=`<div class="box"><h2>🏆 Spiel beendet</h2>
+    <h1>${gewinner.map(esc).join(" & ")}</h1>
+    <p class="hinweis">Gewinnt mit <strong>${bester} Punkten</strong>.</p>
+    <button class="hauptbutton" onclick="gespeichertesSpielLoeschen()">🔄 Neues Spiel</button></div>`;
+  tabelleAnzeigen(); spielSpeichern();
+}
+function spielLaden(){
+  const raw=localStorage.getItem(KEY); if(!raw) return;
+  try{
+    const d=JSON.parse(raw);
+    spieler=d.spieler||[]; gesamtpunkte=d.gesamtpunkte||[]; historie=d.historie||[];
+    runde=d.runde||1; maxRunden=d.maxRunden||Math.floor(60/spieler.length);
+    ansagen=d.ansagen||new Array(spieler.length).fill(0);
+    stiche=d.stiche||new Array(spieler.length).fill(0);
+    document.getElementById("start").classList.add("hidden");
+    document.getElementById("fortsetzen").classList.add("hidden");
+    if(runde===maxRunden && historie.length===maxRunden) spielEnde(); else rundeAnzeigen();
+  }catch(e){ gespeichertesSpielLoeschen(); }
+}
+function gespeichertesSpielLoeschen(){
+  localStorage.removeItem(KEY); location.reload();
+}
+function gespeichertesSpielPruefen(){
+  const raw=localStorage.getItem(KEY); if(!raw) return;
+  try{
+    const d=JSON.parse(raw);
+    if(!d.spieler || d.spieler.length<3) return;
+    document.getElementById("fortsetzen").classList.remove("hidden");
+    document.getElementById("fortsetzenInfo").innerHTML=
+      `Runde <strong>${d.runde} von ${d.maxRunden}</strong><br><br>${d.spieler.map(esc).join(", ")}`;
+  }catch(e){}
+}
+function esc(s){
+  const div = document.createElement("div");
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+gespeichertesSpielPruefen();
+</script>
+</body>
+</html>
